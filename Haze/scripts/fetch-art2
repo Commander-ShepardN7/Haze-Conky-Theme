@@ -1,0 +1,134 @@
+#!/bin/bash
+
+base_path="$(dirname "$(realpath "$0")")"
+source="$1"
+
+# Ensure the script gets the source as input (console)
+if [ -z "$source" ]; then
+    echo "No source specified"
+    exit 1
+fi
+
+data_dir="$base_path/../data"
+round_corners_script="$base_path/round_corners.sh"
+data_img="$data_dir/$source.png"
+cache_file="$data_dir/.last_album_art"
+fallback_img="$base_path/../data/fallback.png" # Generic fallback image, idk if this works
+album_art_dir="$base_path/../data/album_art"  # Directory for album-specific images, local music. You have to download the album cover of the album you're listening to and name it as "Name_of_The_Album" (case sensitive, I think)
+
+# check if the player is running
+is_player_running() {
+    retries=3
+    while [ $retries -gt 0 ]; do
+        if [ "$1" = "cmus" ]; then
+            if cmus-remote -Q 2>&1 | grep -q 'status playing'; then
+                return 0
+            fi
+        else
+            player_status=$(playerctl -p "$1" status)
+            if [ "$player_status" = "Playing" ] || [ "$player_status" = "Paused" ]; then
+                return 0
+            fi
+        fi
+        retries=$((retries - 1))
+        sleep 1
+    done
+    return 1
+}
+
+# Delete the image if the player is not running
+if ! is_player_running "$source"; then
+    [ -f "$data_img" ] && rm "$data_img"
+    exit 0
+fi
+
+if [ "$source" = spotify ]; then
+    if ! command -v playerctl >/dev/null; then
+        echo "Missing playerctl!"
+        exit 1
+    fi
+
+    url="$(playerctl -p spotify metadata mpris:artUrl | sed 's;https://open.spotify.com;http://i.scdn.co;g')"
+    local_file=$(playerctl -p spotify metadata xesam:url | sed 's|file://||')
+    album_name=$(playerctl -p spotify metadata xesam:album)
+    album_name_underscored=$(echo "$album_name" | sed 's/ /_/g')
+    album_art_path="$album_art_dir/$album_name_underscored.png"
+
+    # Decide on a cache key (URL if streaming, album name if local)
+    if [ -n "$url" ]; then
+        cache_key="$url"
+    elif [ -n "$local_file" ]; then
+        cache_key="$album_name"
+    else
+        cache_key="none"
+    fi
+
+    # If the cache key hasn't changed AND the image already exists, skip downloading
+if [ -f "$cache_file" ] && grep -Fxq "$cache_key" "$cache_file" && [ -s "$data_img" ]; then
+    exit 0
+fi
+
+# Save new cache key (regardless of result)
+echo "$cache_key" > "$cache_file"
+
+
+
+    # Check for local files and fallback to album-specific art
+    if [ -z "$url" ] && [ -n "$local_file" ]; then
+        # Use album-specific image if available
+        if [ -f "$album_art_path" ]; then
+            cp "$album_art_path" "$data_img"
+            "$round_corners_script" "$data_img" "$data_img"
+            exit 0
+        fi
+
+        # Attempt to extract embedded art
+        ffmpeg -loglevel quiet -i "$local_file" -an -vcodec copy "$data_img"
+        if [ -f "$data_img" ]; then
+            "$round_corners_script" "$data_img" "$data_img"
+	    echo "Extracted album art from local file."
+	    exit 0
+
+        fi
+    fi
+else
+    echo "Unknown source: '$source'"
+    exit 1
+fi
+
+# Fallback to the specified local image if URL is empty
+if [ -z "$url" ]; then
+    cp "$fallback_img" "$data_img"
+    "$round_corners_script" "$data_img" "$data_img"
+    exit 0
+
+fi
+
+# Function to download album art
+download_art() {
+    curl -s "$url" -o "$data_img"
+}
+
+# Attempt to download album art
+download_art
+
+# Retry once if download failed or file is missing/corrupted
+if [ ! -s "$data_img" ]; then
+    echo "First attempt to download album art failed, retrying..."
+    sleep 0.5
+    download_art
+fi
+
+# Final fallback if still no image
+if [ ! -s "$data_img" ]; then
+    echo "Download failed after retry. Using fallback image."
+    cp "$fallback_img" "$data_img"
+    "$round_corners_script" "$data_img" "$data_img"
+# Apply rounded corners after successful download
+if [ -s "$data_img" ]; then
+    "$round_corners_script" "$data_img" "$data_img"
+fi
+
+fi
+
+

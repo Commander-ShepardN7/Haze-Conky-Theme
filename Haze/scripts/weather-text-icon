@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Load weather icon for tomorrow from forecast JSON
+
+forecast_file="$HOME/.cache/weather_forecast.json"
+
+# Get tomorrow's date
+tomorrow=$(date -d "+1 day" +%Y-%m-%d)
+
+# Extract the icon of the first forecast entry for tomorrow
+WEATHER_ICON=$(jq -r --arg date "$tomorrow" '
+  .list
+  | map(select(.dt_txt | startswith($date)))
+  | .[0].weather[0].icon
+' "$forecast_file")
+
+# Define icon mappings (your font icons)
+ICON_01D=""
+ICON_01N=""
+ICON_02D=""
+ICON_02N=""
+ICON_03D=""
+ICON_03N=""
+ICON_04D=""
+ICON_04N=""
+ICON_09D=""
+ICON_09N=""
+ICON_10D=""
+ICON_10N=""
+ICON_11D=""
+ICON_11N=""
+ICON_13D=""
+ICON_13N=""
+ICON_50D=""
+ICON_50N=""
+
+case "$WEATHER_ICON" in
+  01d) echo "$ICON_01D" ;;
+  01n) echo "$ICON_01N" ;;
+  02d) echo "$ICON_02D" ;;
+  02n) echo "$ICON_02N" ;;
+  03d) echo "$ICON_03D" ;;
+  03n) echo "$ICON_03N" ;;
+  04d) echo "$ICON_04D" ;;
+  04n) echo "$ICON_04N" ;;
+  09d) echo "$ICON_09D" ;;
+  09n) echo "$ICON_09N" ;;
+  10d) echo "$ICON_10D" ;;
+  10n) echo "$ICON_10N" ;;
+  11d) echo "$ICON_11D" ;;
+  11n) echo "$ICON_11N" ;;
+  13d) echo "$ICON_13D" ;;
+  13n) echo "$ICON_13N" ;;
+  50d) echo "$ICON_50D" ;;
+  50n) echo "$ICON_50N" ;;
+  *) echo "?" ;;  # fallback for unknown icon codes
+esac
+
+exit
+
