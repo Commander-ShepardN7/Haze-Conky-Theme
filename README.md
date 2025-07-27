@@ -1,5 +1,5 @@
 # Haze-Conky-Theme
-Awesome Conky Theme that displays system info, Spotify status, current weather, forecast, email and calendar updates!
+Awesome Conky Theme that displays system info, Spotify status, current weather, forecast, email and calendar updates. This time with Click events support!
 
 # Requirements
 - Conky 1.19.8
